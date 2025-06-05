@@ -32,9 +32,6 @@ export default function LoginForm({ onLogin }) {
       // Step 2: Fetch user info after login
       const res = await axios.get(`${myBaseUrl}/api/auth/user/`, {
         withCredentials: true,
-        headers: {
-          'X-CSRFToken': csrftoken,
-        },
       })
 
       // Step 3: Update App state with user info
