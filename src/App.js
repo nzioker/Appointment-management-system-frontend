@@ -9,6 +9,7 @@ import { myBaseUrl } from './utils/api'
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState(null)
+  axios.defaults.withCredentials = true
 
   useEffect(() => {
     // Fetch CSRF cookie on app load
