@@ -17,7 +17,14 @@ export default function Dashboard({ user, onLogout }) {
 
   console.log('myBaseUrl:', myBaseUrl)
   useEffect(() => {
-    axios.get(`${myBaseUrl}/api/csrf/`, { withCredentials: true })
+    axios
+      .get(`${myBaseUrl}/api/csrf/`, { withCredentials: true })
+      .then(() => {
+        const csrf = getCookie('csrftoken')
+        axios.defaults.headers.common['X-CSRFToken'] = csrf
+        console.log('CSRF token set:', csrf)
+      })
+      .catch((err) => console.error('Failed to set CSRF:', err))
   }, [])
 
   const fetchAppointments = () => {
