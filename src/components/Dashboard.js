@@ -72,6 +72,7 @@ export default function Dashboard({ user, onLogout }) {
         withCredentials: true,
         headers: {
           'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json',
         },
       })
       .then(() => {
@@ -82,19 +83,6 @@ export default function Dashboard({ user, onLogout }) {
       })
       .catch(() => alert('Failed to book appointment'))
   }
-
-  //   const handleDelete = (id) => {
-  //     const csrftoken = getCookie('csrftoken')
-  //     axios
-  //       .delete(`http://localhost:8000/api/appointments/${id}/`, {
-  //         withCredentials: true,
-  //         headers: {
-  //           'X-CSRFToken': csrftoken,
-  //         },
-  //       })
-  //       .then(() => fetchAppointments())
-  //       .catch(() => alert('Failed to delete'))
-  //   }
 
   const confirmDelete = (appointmentId) => {
     setAppointmentToDelete(appointmentId)
