@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import Navbar from './Navbar'
+import CalendarView from './CalendarView'
 import { getCookie } from '../utils/csrf'
 import { myBaseUrl } from '../utils/api'
 
@@ -15,23 +16,24 @@ export default function Dashboard({ user, onLogout }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [appointmentToDelete, setAppointmentToDelete] = useState(null)
 
-  console.log('myBaseUrl:', myBaseUrl)
   useEffect(() => {
     axios
       .get(`${myBaseUrl}/api/csrf/`, { withCredentials: true })
       .then(() => {
-        const csrf = getCookie('csrftoken')
-        axios.defaults.headers.common['X-CSRFToken'] = csrf
-        console.log('CSRF token set:', csrf)
+        axios.defaults.headers.common['X-CSRFToken'] = getCookie('csrftoken')
       })
-      .catch((err) => console.error('Failed to set CSRF:', err))
+      .catch((err) => console.error('Failed to get CSRF cookie', err))
+  }, [])
+
+  useEffect(() => {
+    fetchAppointments()
+    fetchProviders()
   }, [])
 
   const fetchAppointments = () => {
+    setLoading(true)
     axios
-      .get(`${myBaseUrl}/api/appointments/`, {
-        withCredentials: true,
-      })
+      .get(`${myBaseUrl}/api/appointments/`, { withCredentials: true })
       .then((res) => {
         setAppointments(res.data)
         setLoading(false)
@@ -42,14 +44,34 @@ export default function Dashboard({ user, onLogout }) {
       })
   }
 
-  useEffect(() => {
-    fetchAppointments()
-
+  const fetchProviders = () => {
     axios
       .get(`${myBaseUrl}/api/providers/`, { withCredentials: true })
       .then((res) => setProviders(res.data))
       .catch(() => setError('Failed to load providers'))
-  }, [])
+  }
+
+  const handleRegisterProvider = async () => {
+    const profession = prompt('Enter your profession:')
+    if (!profession) return
+
+    try {
+      const csrftoken = getCookie('csrftoken')
+      await axios.post(
+        `${myBaseUrl}/api/providers/register/`,
+        { profession },
+        {
+          withCredentials: true,
+          headers: {
+            'X-CSRFToken': csrftoken,
+          },
+        }
+      )
+      alert('Provider registered successfully!')
+    } catch (err) {
+      alert(err.response?.data?.error || 'Registration failed.')
+    }
+  }
 
   const handleProviderSelect = (e) => {
     const providerId = e.target.value
@@ -66,15 +88,8 @@ export default function Dashboard({ user, onLogout }) {
 
   const handleAddAppointment = (e) => {
     e.preventDefault()
-    const csrftoken = getCookie('csrftoken')
     axios
-      .post(`${myBaseUrl}/api/appointments/`, form, {
-        withCredentials: true,
-        headers: {
-          'X-CSRFToken': csrftoken,
-          'Content-Type': 'application/json',
-        },
-      })
+      .post(`${myBaseUrl}/api/appointments/`, form, { withCredentials: true })
       .then(() => {
         setForm({ provider: '', time: '' })
         setSelectedProvider(null)
@@ -84,27 +99,36 @@ export default function Dashboard({ user, onLogout }) {
       .catch(() => alert('Failed to book appointment'))
   }
 
+  // const handleRegisterProvider = () => {
+  //   axios
+  //     .post(
+  //       `${myBaseUrl}/api/providers/register/`,
+  //       {},
+  //       { withCredentials: true }
+  //     )
+  //     .then(() => {
+  //       alert('You have been registered as a service provider!')
+  //       fetchProviders()
+  //     })
+  //     .catch(() => alert('Failed to register as provider'))
+  // }
+
   const confirmDelete = (appointmentId) => {
     setAppointmentToDelete(appointmentId)
     setShowDeleteModal(true)
   }
 
   const performDelete = () => {
-    const csrftoken = getCookie('csrftoken')
-
     axios
       .delete(`${myBaseUrl}/api/appointments/${appointmentToDelete}/`, {
         withCredentials: true,
-        headers: {
-          'X-CSRFToken': csrftoken,
-        },
       })
       .then(() => {
         fetchAppointments()
         setShowDeleteModal(false)
         setAppointmentToDelete(null)
       })
-      .catch(() => alert('Failed to delete'))
+      .catch(() => alert('Failed to delete appointment'))
   }
 
   return (
@@ -114,6 +138,15 @@ export default function Dashboard({ user, onLogout }) {
       <main className='p-6 max-w-4xl mx-auto'>
         <h2 className='text-2xl font-semibold mb-6'>Book Appointment</h2>
 
+        <div className='mb-6'>
+          <button
+            onClick={handleRegisterProvider}
+            className='bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700'
+          >
+            Register as a Service Provider
+          </button>
+        </div>
+
         <form onSubmit={handleAddAppointment} className='mb-8 space-y-4'>
           <select
             value={form.provider}
@@ -121,7 +154,7 @@ export default function Dashboard({ user, onLogout }) {
             className='w-full p-2 border rounded'
             required
           >
-            <option value=''>Select a person</option>
+            <option value=''>Select a provider</option>
             {providers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -130,19 +163,12 @@ export default function Dashboard({ user, onLogout }) {
           </select>
 
           {timeSlots.length > 0 && (
-            <select
-              value={form.time}
-              onChange={(e) => setForm({ ...form, time: e.target.value })}
-              className='w-full p-2 border rounded'
-              required
-            >
-              <option value=''>Select a time slot</option>
-              {timeSlots.map((slot, i) => (
-                <option key={i} value={slot}>
-                  {slot}
-                </option>
-              ))}
-            </select>
+            <CalendarView
+              timeSlots={timeSlots}
+              onSelectSlot={(date) =>
+                setForm({ ...form, time: date.toISOString() })
+              }
+            />
           )}
 
           <button
@@ -179,6 +205,7 @@ export default function Dashboard({ user, onLogout }) {
           ))}
         </ul>
       </main>
+
       {showDeleteModal && (
         <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
           <div className='bg-white p-6 rounded-xl shadow-lg w-96 text-center'>

@@ -1,72 +1,108 @@
-import './App.css'
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  Navigate,
+} from 'react-router-dom'
+import { useState } from 'react'
 import Login from './components/Login'
-import Dashboard from './components/Dashboard'
-import { useState, useEffect } from 'react'
+import UserDashboard from './components/UserDashboard'
+import ProviderDashboard from './components/ProviderDashboard'
+import Signup from './components/Signup'
 import axios from 'axios'
-import { getCookie } from '../src/utils/csrf'
-import { myBaseUrl } from './utils/api'
-axios.defaults.withCredentials = true
+import { API_BASE_URL } from './utils/config'
+import { getCookie } from './utils/csrf'
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [user, setUser] = useState(null)
+export default function App() {
+  const [role, setRole] = useState(null)
 
-  useEffect(() => {
-    // Fetch CSRF cookie on app load
-    axios
-      .get(`${myBaseUrl}/api/csrf/`, { withCredentials: true })
-      .then(() => {
-        console.log('CSRF cookie set')
+  const handleLogout = async () => {
+    try {
+      const csrftoken = getCookie('csrftoken')
+      await axios.post(
+        `${API_BASE_URL}/api/auth/logout/`,
+        {},
+        {
+          headers: {
+            'X-CSRFToken': csrftoken,
+          },
+          withCredentials: true,
+        }
+      )
+      setRole(null)
+    } catch (err) {
+      console.error('Logout error:', err.response || err)
+      alert('Logout failed')
+    }
+  }
 
-        // Set axios global CSRF header
-        axios.defaults.withCredentials = true
-        axios.defaults.headers.common['X-CSRFToken'] = getCookie('csrftoken')
-
-        // Fetch user info after CSRF is ready
-        axios
-          .get(`${myBaseUrl}/api/auth/user/`)
-          .then((res) => {
-            setUser(res.data)
-            setIsAuthenticated(true)
-          })
-          .catch(() => {
-            setUser(null)
-            setIsAuthenticated(false)
-          })
-      })
-      .catch((err) => {
-        console.error('Failed to get CSRF cookie:', err)
-      })
-  }, [])
-
-  const handleLogout = () => {
-    axios
-      .post(`${myBaseUrl}/api/auth/logout/`, {})
-      .then(() => {
-        setUser(null)
-        setIsAuthenticated(false)
-      })
-      .catch((err) => {
-        console.error('Logout error:', err)
-      })
+  // ✅ Component to guard routes
+  const ProtectedRoute = ({ children, allowed }) => {
+    if (!role) return <Navigate to='/login' replace />
+    if (role !== allowed) return <Navigate to='/' replace />
+    return children
   }
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-gray-100 to-gray-200'>
-      {isAuthenticated && user ? (
-        <Dashboard user={user} onLogout={handleLogout} />
-      ) : (
-        <div className='flex flex-col items-center justify-center h-screen space-y-8'>
-          <Login
-            onLogin={(user) => {
-              setIsAuthenticated(true)
-              setUser(user)
-            }}
-          />
-        </div>
-      )}
-    </div>
+    <Router>
+      <nav className='bg-gray-800 text-white p-4 flex space-x-4'>
+        {/* <Link to='/' className='hover:underline'>
+          Home
+        </Link> */}
+        {!role && (
+          <>
+            <Link to='/login' className='hover:underline'>
+              Login
+            </Link>
+            <Link to='/signup' className='hover:underline'>
+              Sign Up
+            </Link>
+          </>
+        )}
+        {role === 'user' && (
+          <Link to='/user' className='hover:underline'>
+            User Dashboard
+          </Link>
+        )}
+        {role === 'provider' && (
+          <Link to='/provider' className='hover:underline'>
+            Provider Dashboard
+          </Link>
+        )}
+        {role && (
+          <button onClick={handleLogout} className='hover:underline'>
+            Logout
+          </button>
+        )}
+      </nav>
+
+      <Routes>
+        <Route
+          path='/'
+          element={<div className='p-4 text-xl'>Welcome! Please log in.</div>}
+        />
+        <Route path='/login' element={<Login onLogin={setRole} />} />
+        <Route path='/signup' element={<Signup />} />
+
+        {/* 🔐 Role-based protected routes */}
+        <Route
+          path='/user'
+          element={
+            <ProtectedRoute allowed='user'>
+              <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/provider'
+          element={
+            <ProtectedRoute allowed='provider'>
+              <ProviderDashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </Router>
   )
 }
-
-export default App
